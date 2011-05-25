@@ -77,6 +77,23 @@ object RetrieveApp {
     try {
       val cmd = parser.parse(opts, args);
 
+      val baseDir = new File(cmd.getOptionValue("b"));
+
+      // See if someone has created a compiled PreProcessor
+      val appContext = 
+        new ClassPathXmlApplicationContext("application-context.xml");
+
+      appContext.getBean("preProcessor") match {
+        case null => {}
+        case pre: PreProcessor => pre.process(baseDir)
+        case _ => { println("Injected prePocessor must be of type " +
+          "org.beeherd.jenkins.client.PreProcessor") }
+      }
+
+      if (cmd.hasOption("prejs")) 
+        executeJavascript(cmd.getOptionValue("prejs"), baseDir)
+
+
       val host = cmd.getOptionValue("s");
       val port = cmd.getOptionValue("p").toInt;
       val modPath = cmd.getOptionValue("mp");
@@ -113,22 +130,6 @@ object RetrieveApp {
 
       val file = new File(name + "." + downloadType);
       dispatcher.download(request, 30, file);
-
-      val baseDir = new File(cmd.getOptionValue("b"));
-
-      // See if someone has created a compiled PreProcessor
-      val appContext = 
-        new ClassPathXmlApplicationContext("application-context.xml");
-
-      appContext.getBean("preProcessor") match {
-        case null => {}
-        case pre: PreProcessor => pre.process(baseDir)
-        case _ => { println("Injected prePocessor must be of type " +
-          "org.beeherd.jenkins.client.PreProcessor") }
-      }
-
-      if (cmd.hasOption("prejs")) 
-        executeJavascript(cmd.getOptionValue("prejs"), baseDir)
 
       val explodedDirOpt: Option[File] = 
         if (cmd.hasOption("e")) {
