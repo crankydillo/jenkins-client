@@ -32,5 +32,5 @@ trait PostProcessor {
   *
   * @installDir The directory that has been created 
   */
-  def process(artifact: File, installDir: File): Unit
+  def process(artifact: File, installDir: Option[File]): Unit
 }

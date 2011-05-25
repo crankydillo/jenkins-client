@@ -10,12 +10,20 @@ import org.apache.commons.cli.{BasicParser, OptionGroup => OptGroup,
 Option => Opt, Options => Opts, OptionBuilder => OptBuilder, ParseException, 
 HelpFormatter, CommandLine}
 import org.apache.commons.io.{FileUtils, IOUtils}
+import org.springframework.context.support.ClassPathXmlApplicationContext
 
 import org.beeherd.archive.Archive
 import org.beeherd.dispatcher._
 import org.beeherd.http.dispatcher.HttpRequest
 import org.beeherd.http.client._
 
+/**
+* Basically a script tieing together a bunch of tools in order to grab
+* something from Jenkins and do optional stuff with it.  Stuff includes things
+* like exploding into a directory, running pre and post processing code, etc.
+*
+* @author scox
+*/
 object RetrieveApp {
   def main(args: Array[String]): Unit = {
 
@@ -108,8 +116,17 @@ object RetrieveApp {
 
       val baseDir = new File(cmd.getOptionValue("b"));
 
-      // Optionally, execute a Javascript file presumably to grab some stuff
-      // from the last used build.
+      // See if someone has created a compiled PreProcessor
+      val appContext = 
+        new ClassPathXmlApplicationContext("application-context.xml");
+
+      appContext.getBean("preProcessor") match {
+        case null => {}
+        case pre: PreProcessor => pre.process(baseDir)
+        case _ => { println("Injected prePocessor must be of type " +
+          "org.beeherd.jenkins.client.PreProcessor") }
+      }
+
       if (cmd.hasOption("prejs")) 
         executeJavascript(cmd.getOptionValue("prejs"), baseDir)
 
@@ -135,9 +152,15 @@ object RetrieveApp {
           None
         }
 
-      // Optionally, execute a Javascript file as the last thing
+      appContext.getBean("postProcessor") match {
+        case null => {}
+        case post: PostProcessor => post.process(baseDir, explodedDirOpt)
+        case _ => { println("Injected postPocessor must be of type " +
+          "org.beeherd.jenkins.client.PostProcessor") }
+      }
+
       if (cmd.hasOption("postjs"))
-        executeJavascript(cmd.getOptionValue("postjs"), baseDir, explodedDirOpt);
+        executeJavascript(cmd.getOptionValue("postjs"), file, explodedDirOpt);
 
     } catch {
       case pe: ParseException => {

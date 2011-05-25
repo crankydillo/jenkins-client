@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN"
-   "http://www.springframework.org/dtd/spring-beans.dtd">
-    
+<!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN" "http://www.springframework.org/dtd/spring-beans.dtd">
 <beans>
-  <bean id="preProcessor" class="org.beeherd.jenkins.client.Test">
+  <!-- 
+   If Javascript pre/post processing is too slow, you can implement the
+   following interfaces and inject them using Spring.
+   -->
+  <!--
+  <bean id="preProcessor" class="org.beeherd.jenkins.client.PreProcessor">
     <constructor-arg value="hello world" />
   </bean>
+  <bean id="postProcessor" class="org.beeherd.jenkins.client.PostProcessor">
+    <constructor-arg value="hello world" />
+  </bean>
+  -->
 </beans>
-
