@@ -11,7 +11,7 @@ Option => Opt, Options => Opts, OptionBuilder => OptBuilder, ParseException,
 HelpFormatter, CommandLine}
 import org.apache.commons.io.{FileUtils, IOUtils}
 
-import org.beeherd.archive.Zip
+import org.beeherd.archive.Archive
 import org.beeherd.dispatcher._
 import org.beeherd.http.dispatcher.HttpRequest
 import org.beeherd.http.client._
@@ -27,10 +27,11 @@ object RetrieveApp {
       opts.addOption(opt);
     }
 
-    addRequired("s", "host");
-    addRequired("p", "port");
-    addRequired("mp", "path to the module");
-    addRequired("rp", "the relative path for the artifact");
+    addRequired("s", "Host");
+    addRequired("p", "Port");
+    addRequired("mp", "Path to the module");
+    addRequired("rp", "Relative path for the artifact");
+    addRequired("t", "Download file's type (e.g. zip, tar.gz)");
     //addRequired("t", "directory in which to explode the zip")
 
     var opt = new Opt("b", true, "The directory that contains the builds");
@@ -74,6 +75,7 @@ object RetrieveApp {
       val relPath = cmd.getOptionValue("rp");
       val prefix = "jenkins-";
       val suffix = cmd.getOptionValue("ls", "-last");
+      val downloadType = cmd.getOptionValue("t");
 
       val dispatcher = new HttpDispatcher(client, true);
 
@@ -101,7 +103,7 @@ object RetrieveApp {
         if (useLastStable) prefix + build + suffix
         else prefix + build
 
-      val file = new File(name + ".zip");
+      val file = new File(name + "." + downloadType);
       dispatcher.download(request, 30, file);
 
       val baseDir = new File(cmd.getOptionValue("b"));
@@ -196,9 +198,9 @@ object RetrieveApp {
       if (toDir.exists) 
         throw new RuntimeException(toDir.getAbsolutePath + " already exists, not exploding.");
       toDir.mkdir();
-      println("Exploding the zip to " + toDir.getAbsolutePath);
+      println("Exploding the archive to " + toDir.getAbsolutePath);
 
-      Zip.explode(file, toDir);
+      Archive.explode(file, toDir);
 
     } catch {
       case e:Exception => throw new ExplosionException(e.getMessage);
