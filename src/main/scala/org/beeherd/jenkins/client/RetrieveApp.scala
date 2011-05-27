@@ -40,7 +40,6 @@ object RetrieveApp {
     addRequired("mp", "Path to the module");
     addRequired("rp", "Relative path for the artifact");
     addRequired("t", "Download file's type (e.g. zip, tar.gz)");
-    //addRequired("t", "directory in which to explode the zip")
 
     var opt = new Opt("b", true, "The directory that contains the builds");
     opt.setRequired(false);
@@ -50,7 +49,8 @@ object RetrieveApp {
     opt.setRequired(false);
     opts.addOption(opt)
 
-    opt = new Opt("ls", true, "suffix to use that represents the last exploded build (default: -last).");
+    opt = new Opt("ls", true, "suffix to use that represents the last " +
+      "exploded build (default: -last).");
     opt.setRequired(false);
     opts.addOption(opt)
 
@@ -62,7 +62,9 @@ object RetrieveApp {
     opt.setRequired(false);
     opts.addOption(opt);
 
-    opt = new Opt("prejs", true, "path to javascript file that will be run as a first step when exploding the downloaded file.  Unlike -postjs, this script will not execute UNLESS you are using the -e option");
+    opt = new Opt("prejs", true, "path to javascript file that will be run as " +
+      "a first step when exploding the downloaded file.  Unlike -postjs, this " +
+      "script will not execute UNLESS you are using the -e option");
     opt.setRequired(false);
     opts.addOption(opt)
 
