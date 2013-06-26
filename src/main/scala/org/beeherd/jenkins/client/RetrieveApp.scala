@@ -2,20 +2,62 @@ package org.beeherd.jenkins.client
 
 import java.io._
 import java.text.DecimalFormat
-import java.util.zip.{ZipEntry, ZipFile, ZipInputStream}
+import java.util.zip.{
+  ZipEntry, ZipFile, ZipInputStream
+}
 
 import javax.script._
 
-import org.apache.commons.cli.{BasicParser, OptionGroup => OptGroup,
-Option => Opt, Options => Opts, OptionBuilder => OptBuilder, ParseException, 
-HelpFormatter, CommandLine}
-import org.apache.commons.io.{FileUtils, IOUtils}
+import org.apache.commons.cli.{
+  BasicParser, OptionGroup => OptGroup,
+  Option => Opt, Options => Opts, OptionBuilder => OptBuilder, ParseException, 
+  HelpFormatter, CommandLine
+}
+import org.apache.commons.io.{
+  FileUtils, IOUtils
+}
+
+import org.apache.http.{
+  HttpHost, HttpRequestInterceptor
+}
+import org.apache.http.client.{
+  HttpClient => ApacheHttpClient
+}
+import org.apache.http.client.{
+  CredentialsProvider, ResponseHandler, 
+  HttpClient => ApacheHttpClient, HttpResponseException
+}
+import org.apache.http.client.methods.{
+  HttpGet, HttpPost, HttpPut, HttpDelete
+}
+import org.apache.http.client.params.AuthPolicy
+import org.apache.http.client.protocol.ClientContext
+import org.apache.http.conn.scheme.{
+  Scheme, SchemeRegistry, PlainSocketFactory
+}
+import org.apache.http.auth.{
+  AuthScope, AuthScheme, AuthState, UsernamePasswordCredentials
+}
+import org.apache.http.impl.auth.BasicScheme
+import org.apache.http.protocol.{
+  BasicHttpContext, ExecutionContext, HttpContext
+}
+import org.apache.http.params.{
+  BasicHttpParams, HttpConnectionParams
+}
+import org.apache.http.impl.client.{
+  BasicAuthCache, BasicResponseHandler, AbstractHttpClient,
+  DefaultHttpClient, DefaultHttpRequestRetryHandler
+}
+import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager
+
+
 import org.springframework.context.support.ClassPathXmlApplicationContext
 
 import org.beeherd.archive.Archive
-import org.beeherd.dispatcher._
-import org.beeherd.http.dispatcher.HttpRequest
-import org.beeherd.http.client._
+import org.beeherd.client._
+//import org.beeherd.http.client._
+import org.beeherd.client.http._
 
 /**
 * Basically a script tieing together a bunch of tools in order to grab
@@ -104,7 +146,7 @@ object RetrieveApp {
       val suffix = cmd.getOptionValue("ls", "-last");
       val downloadType = cmd.getOptionValue("t");
 
-      val dispatcher = new HttpDispatcher(client, true);
+      val dispatcher = new HttpClient(client, true);
 
       val useLastStable = !cmd.hasOption("bn");
 
@@ -124,7 +166,7 @@ object RetrieveApp {
         }
 
       val path = modPath + "/" + build + "/" + relPath;
-      val request = new HttpRequest(host, path, port = port);
+      val request = new HttpRequest(host, path, port = port, protocol = "https");
 
       val name = 
         if (useLastStable) prefix + build + suffix
@@ -260,5 +302,106 @@ object RetrieveApp {
   }
 
   private class ExplosionException(msg: String) extends Exception(msg)
+
+}
+
+import javax.net.ssl.{
+  SSLContext, X509TrustManager
+}
+import java.security.cert.X509Certificate
+import org.apache.http.conn.ssl.SSLSocketFactory
+object ClientFactory {
+  private val Timeout = 30 * 1000;
+  private val user = {
+    print("Username: ");
+    new jline.ConsoleReader().readLine()
+  }
+
+  private val password = {
+    print("Password: ")
+    new jline.ConsoleReader().readLine(new Character('*'))
+  }
+
+  def createClient: ApacheHttpClient = {
+    val client = {
+
+      /*
+      val ctx = SSLContext.getInstance("TLS");
+
+      val tm = new X509TrustManager() {
+        def checkClientTrusted(xcs: Array[X509Certificate], string: String): Unit = {}
+        def checkServerTrusted(xcs: Array[X509Certificate], string: String): Unit = {}
+        def getAcceptedIssuers(): Array[X509Certificate] = null
+      };
+
+      ctx.init(null, Array(tm), null);
+      val ssf = new SSLSocketFactory(ctx);
+      val schemeRegistry = new SchemeRegistry();
+      schemeRegistry.register( 
+          new Scheme("https", PlainSocketFactory.getSocketFactory(), 443)
+        );
+      */
+
+      val cm = new ThreadSafeClientConnManager();
+      //val cm = new ThreadSafeClientConnManager(schemeRegistry);
+
+      val params = new BasicHttpParams(); 
+      HttpConnectionParams.setConnectionTimeout(params, Timeout);
+
+      new DefaultHttpClient(cm, params)
+    }
+
+    client.setHttpRequestRetryHandler(new DefaultHttpRequestRetryHandler(0, false));
+
+    //client.getParams().setAuthenticationPreemptive(true);
+    val authScope = new AuthScope(AuthScope.ANY); 
+    val creds = new UsernamePasswordCredentials(user, password);
+    client.getCredentialsProvider().setCredentials(authScope, creds);
+
+    val params = new BasicHttpParams(); 
+    HttpConnectionParams.setConnectionTimeout(params,  Timeout);
+    HttpConnectionParams.setSoTimeout(params, Timeout);
+    client.setParams(params);
+
+
+    val localContext = new BasicHttpContext();
+    val basicAuth = new BasicScheme();
+    localContext.setAttribute("preemptive-auth", basicAuth);
+
+    client.addRequestInterceptor(
+        new HttpRequestInterceptor {
+          def process(request: org.apache.http.HttpRequest, context: HttpContext): Unit = {
+            val authState = context.getAttribute(ClientContext.TARGET_AUTH_STATE)
+              .asInstanceOf[AuthState];
+
+            if (authState.getAuthScheme() == null) {
+              var authScheme = context.getAttribute("preemptive-auth").asInstanceOf[AuthScheme];
+              if (authScheme == null) {
+                context.setAttribute("preemptive-auth", basicAuth);
+                authScheme = basicAuth;
+              }
+              val credsProvider = context.getAttribute(ClientContext.CREDS_PROVIDER)
+                .asInstanceOf[CredentialsProvider];
+              val targetHost = context.getAttribute(ExecutionContext.HTTP_TARGET_HOST)
+                .asInstanceOf[HttpHost];
+              if (authScheme != null) {
+                val creds = credsProvider.getCredentials(
+                    new AuthScope(targetHost.getHostName(), targetHost.getPort()));
+                if (creds == null) {
+                  throw new RuntimeException("No credentials for preemptive authentication");
+                }
+                authState.setAuthScheme(authScheme);
+                authState.setCredentials(creds);
+              } else {
+                println("no authscheme:(");
+              }
+            }
+          }
+        }
+        , 0
+      );
+
+    client
+  }
 
 }

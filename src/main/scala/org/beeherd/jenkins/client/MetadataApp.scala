@@ -10,9 +10,8 @@ Option => Opt, Options => Opts, OptionBuilder => OptBuilder, ParseException,
 HelpFormatter, CommandLine}
 import org.apache.commons.io.IOUtils
 
-import org.beeherd.dispatcher._
-import org.beeherd.http.dispatcher.HttpRequest
-import org.beeherd.http.client._
+import org.beeherd.client._
+import org.beeherd.client.http._
 
 object MetadataApp {
   def main(args: Array[String]): Unit = {
@@ -46,7 +45,7 @@ object MetadataApp {
       val port = cmd.getOptionValue("p").toInt;
       val path = cmd.getOptionValue("mp");
 
-      val dispatcher = new HttpDispatcher(client, true);
+      val dispatcher = new HttpClient(client, true);
 
       val modRetriever = new ModuleRetriever(dispatcher);
       val (resp, moduleInfoOpt) = modRetriever.retrieve(host, path, port);
@@ -61,7 +60,7 @@ object MetadataApp {
               case Some(b) => {
                 val path = b.url.replaceFirst("http://" + host + ":" + port, "") + "/api/xml";
                 val request = new HttpRequest(host, path, port = port);
-                response = dispatcher.dispatch(request);
+                response = dispatcher.submit(request);
                 response match {
                   case XmlResponse(xml) => {
                     val buildInfo = Jenkins2BuildFull.unmarshal(b.number, b.url, xml);
@@ -140,12 +139,13 @@ object MetadataApp {
 }
 
 class ModuleRetriever(
-  dispatcher: HttpDispatcher
+  dispatcher: HttpClient
 ) {
   def retrieve(host: String, path: String, port: Int): (Response, Option[Module]) = {
-    val request = new HttpRequest(host, path, port = port);
+    val request = new HttpRequest(host, path, port = port, protocol = "https");
+    println(request.url);
 
-    val response = dispatcher.dispatch(request);
+    val response = dispatcher.submit(request);
 
     response match {
       case XmlResponse(xml) => (response, Some(Jenkins2Module.unmarshal(xml)))
